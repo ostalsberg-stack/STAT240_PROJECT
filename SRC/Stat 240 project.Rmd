@@ -1,0 +1,67 @@
+---
+title: "STAT 240 Final Group Project"
+author: "Jiali, Rika, Oliver, Isaac"
+date: "2026-11-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Introduction & Research Question
+
+## Data Description & Cleaning
+```{r}
+library(tidyverse)
+acs<-read_csv("psam_p55.csv")
+glimpse(acs)
+```
+```{r}
+income_data<-acs%>%
+  filter(
+    AGEP>=18,
+    SCHL %in% c("16","21"),
+    !is.na(PINCP)
+  )
+```
+#SCHL is a variable means educational attainment
+```{r}
+income_data%>%
+  group_by(SCHL)%>%
+  summarize(n=n())
+```
+
+## Descriptive Statistics & Visualization
+```{r}
+income_data%>%
+  group_by(SCHL)%>%
+  summarize(
+    n=n(),
+    mean_income=mean(PINCP, na.rm=TRUE)
+  )
+```
+
+```{r}
+#
+income_summary<-income_data%>%
+  group_by(SCHL)%>%
+  summarize(
+    mean_income=mean(PINCP,na.rm=TRUE)
+  )
+ggplot(income_summary,aes(x=SCHL, y=mean_income))+
+  geom_col()
+```
+
+## Statistical Inference
+### Hypotheses
+μB: Population mean annual income for adults with a bachelor's degree.
+μH = Population mean annual income for adults with a high school diploma.
+
+H0: μB - μH = 0
+This is no difference in mean annual income between the two education groups.
+
+HA: μB - μH ≠ 0
+There is a difference in mean annual income between the two education groups.
+## Results & Discussion
+
+## Conclusion & Limitations
