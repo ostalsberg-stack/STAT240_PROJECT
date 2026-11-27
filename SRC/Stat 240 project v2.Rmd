@@ -1,0 +1,136 @@
+---
+title: "STAT 240 Final Group Project"
+author: "Jiali, Rika, Oliver, Isaac"
+date: "2026-11-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# **Introduction & Research Question**
+
+## **Data Description & Cleaning**
+```{r}
+library(tidyverse)
+acs<-read_csv("psam_p55.csv")
+glimpse(acs)
+```
+```{r}
+income_data<-acs%>%
+  filter(
+    AGEP>=18,
+    SCHL %in% c("16","21"),
+    !is.na(PINCP)
+  )
+```
+#SCHL is a variable and means educational attainment.
+```{r}
+income_data%>%
+  group_by(SCHL)%>%
+  summarize(n=n())
+```
+
+## **Descriptive Statistics & Visualization**
+```{r}
+income_data%>%
+  group_by(SCHL)%>%
+  summarize(
+    n=n(),
+    mean_income=mean(PINCP, na.rm=TRUE)
+  )
+```
+
+```{r}
+#
+income_summary<-income_data%>%
+  group_by(SCHL)%>%
+  summarize(
+    mean_income=mean(PINCP,na.rm=TRUE)
+  )
+ggplot(income_summary,aes(x=SCHL, y=mean_income))+
+  geom_col()
+```
+```{r}
+dat <- acs %>%
+  filter(AGEP >= 18, SCHL %in% c(16, 21)) %>%
+  mutate(degree = factor(if_else(SCHL == 21, "Bachelor", "HighSchool"),
+                         levels = c("HighSchool", "Bachelor"))) 
+
+count(dat, degree)
+
+ggplot(dat, aes(PINCP)) +
+  geom_histogram(bins = 50) +
+  facet_wrap(~degree) +
+  scale_x_continuous(labels = scales::dollar)
+```
+
+# **Statistical Inference**
+## **Hypotheses**
+μB: Population mean annual income for adults with a bachelor's degree.
+μH = Population mean annual income for adults with a high school diploma.
+
+H0: μB - μH = 0
+This is no difference in mean annual income between the two education groups.
+
+HA: μB - μH ≠ 0
+There is a difference in mean annual income between the two education groups.
+
+## **Conditions** 
+**Independence:** within each group, people are sampled independently, and the two groups are different people. The ACS design supports this approximately. One caveat is that people in the same household are not fully independent.
+
+**Sample size:** income is heavily right-skewed, but with thousands of observations per group the Central Limit Theorem makes the t-test reliable. 
+
+**Outliers:** the file top-codes very high incomes, which limits extreme values, but there are still large values.
+
+```{r}
+#Welch's version 
+t.test(PINCP ~ degree, data = dat)
+
+#Weighted version
+library(survey)
+des <- svydesign(ids = ~1, weights = ~PWGTP, data = dat)
+svyttest(PINCP ~ degree, design = des)
+```
+```{r}
+#Cohen's d
+m <- dat %>%
+  group_by(degree) %>%
+  summarise(n = n(), mean = mean(PINCP), sd = sd(PINCP))
+
+pooled_sd <- sqrt(((m$n[1]-1)*m$sd[1]^2 + (m$n[2]-1)*m$sd[2]^2) /
+                  (m$n[1] + m$n[2] - 2))
+
+d <- (m$mean[m$degree == "Bachelor"] - m$mean[m$degree == "HighSchool"]) / pooled_sd
+d
+```
+
+The weighted test is better suited for survey data, since it reflects Wisconsin's population and not just the sample.
+
+```{r}
+res <- t.test(PINCP ~ degree, data = dat)
+res$conf.int
+diff(res$estimate)
+```
+
+# **Results & Discussion**
+## **Results**
+Our group compared the mean annual personal income (variable *PINCP*) of Wisconsin adults aged 18 and older whose highest degree is a high school diploma (n = 15,364) or a Bachelor's degree (n = 9,600), using the 2024 ACS 1-year PUMS file. The sample mean income was **$37,110.98 for high school graduates and $72,204.82 for Bachelor's holders**, a difference of **$35,093.84**.
+
+Welch's two-sample t-test gave ***t* = −42.55 (df = 13,178, p < 2.2 × 10⁻¹⁶)**, where the negative sign reflects the test's subtraction order of high school minus Bachelor's. The 95% confidence interval for the difference in means (Bachelor's minus high school) is **$33,477.20 to $36,710.48**.
+
+The survey-weighted test, which uses the person weights (PWGTP) to represent Wisconsin's population, gave an estimated difference of **$35,117.97** (*t* = 33.79, *df* = 24,962, p < 2.2 × 10⁻¹⁶). Its 95% confidence interval is **$33,081.00 to $37,154.95**. The effect size was Cohen's d = 0.63, with a pooled standard deviation of roughly $55,900.
+
+## **Interpretation**
+The p-values from both tests are far below α = 0.05, so we **reject H₀** and conclude there is statistically significant evidence that **mean annual income differs between Wisconsin adults with a Bachelor's degree and those with a high school diploma**. We are 95% confident that Bachelor's holders earn between about $33,500 and $36,700 more per year on average than high school graduates (unweighted), or between about $33,100 and $37,200 more weighted. In relative terms, the Bachelor's mean is about 1.9 times the high school mean, or roughly 95% higher.
+
+Cohen's d of 0.63 is a medium-to-large effect, since it falls between the "conventional" benchmarks of 0.5 (medium) and 0.8 (large). The two group means are about 0.6 standard deviations apart, so the gap is large in practical terms and not just statistically detectable.
+
+## **Discussion**
+These results align with the socially "intuitive" idea that holding a Bachelor's degree is associated with substantially higher income in Wisconsin. However, this is an observational statistical comparison and analysis, so it does not show that the degree causes the higher income. Bachelor's holders may differ from high school graduates in age, occupation, hours worked, family background and other uncontrolled factors that also affect income. 
+
+# **Conclusion & Limitations**
+-NOTE: the weighted test treats the sample as simple random with weights, which slightly understates the standard error. That could be worded into a limitation.
+-Income is right-skewed, so the standard deviation is inflated by high earners, and Cohen's d can look smaller than the typical gap really is.The guideline cutoffs are also only rules of thumb.
+-Our sample includes adults as young as 18 (age filter to >= 18). Many 18 to 24 year olds with only a high school diploma are still in school or early in their careers, while Bachelor's holders are almost all older, so some of the gap may reflect age and not education. Restricting to adults 25 and older, or controlling for age, would address this.
